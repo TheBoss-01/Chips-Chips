@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Bar Pixel</title>
+    <!-- Fuentes de Google -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700&family=Exo+2:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css.css">
+</head>
+<body>
+    <div id="screen-login" class="screen active">
+        <!-- Decoración -->
+        <div class="px-deco" style="left:5%; top:15%; --dur:6s; color:#FF007F;">🎰</div>
+        <div class="px-deco" style="right:8%; bottom:20%; --dur:8s; color:#00F0FF;">🃏</div>
+
+        <div class="login-sign">
+            <span class="sign-bar">BAR</span>
+            <span class="sign-pixel">PIXEL</span>
+            <div class="sign-tagline">✦ ACCESO AL CASINO ✦</div>
+        </div>
+
+        <div class="login-card">
+            <h2>🔑 LOGIN</h2>
+            <div class="field-group">
+                <label>USUARIO</label>
+                <input type="text" id="inp-user" placeholder="Nombre...">
+            </div>
+            <div class="field-group">
+                <label>CONTRASEÑA</label>
+                <input type="password" id="inp-pass" placeholder="••••••••">
+            </div>
+            <div id="login-error"></div>
+            <button id="btn-login" onclick="doLogin()">ENTRAR</button>
+        </div>
+    </div>
+
+    <script src="java.js"></script>
+</body>
+</html>
