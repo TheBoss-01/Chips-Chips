@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chips & Chips — Ajustes y Utilidades</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="game.css" />
+    <style>
+        body {
+            background: #0d0d1a;
+            color: #e0f8ff;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-y: auto;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        .utils-header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #00f5ff;
+            padding-bottom: 15px;
+            width: 100%;
+            max-width: 650px;
+            text-shadow: 0 0 10px rgba(0, 245, 255, 0.5);
+        }
+
+        .utils-header h1 {
+            color: #00f5ff;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .utils-header p {
+            font-size: 8px;
+            color: #8b949e;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            width: 100%;
+            max-width: 650px;
+        }
+
+        .card {
+            background: rgba(10, 5, 30, 0.8);
+            border: 2px solid #5b21b6;
+            padding: 25px;
+            border-radius: 6px;
+            box-shadow: 0 0 20px rgba(91, 33, 182, 0.4);
+        }
+
+        .card h3 {
+            font-size: 10px;
+            color: #ffd700;
+            margin-top: 0;
+            margin-bottom: 25px;
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .label {
+            font-size: 8px;
+            color: #a5b4fc;
+        }
+
+        .btn-toggle {
+            background: #111;
+            border: 2px solid #333;
+            color: #888;
+            padding: 10px 14px;
+            font-size: 7px;
+            cursor: pointer;
+            font-family: 'Press Start 2P';
+            transition: all 0.2s;
+        }
+
+        .btn-toggle:hover {
+            border-color: #555;
+            color: #fff;
+        }
+
+        .btn-toggle.active {
+            border-color: #39ff14;
+            color: #39ff14;
+            background: rgba(57, 255, 20, 0.1);
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);
+        }
+
+        .btn-toggle.danger {
+            border-color: #ff2d78 !important;
+            color: #ff2d78 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .btn-toggle.danger:hover {
+            background: rgba(255, 45, 120, 0.1) !important;
+        }
+
+        input[type="text"] {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #5b21b6;
+            color: #fff;
+            font-family: 'Press Start 2P';
+            font-size: 8px;
+            padding: 8px;
+            outline: none;
+            width: 110px;
+            text-align: center;
+        }
+
+        input[type="text"]:focus {
+            border-color: #00f5ff;
+        }
+
+        input[type="color"] {
+            background: transparent;
+            border: 2px solid #5b21b6;
+            height: 30px;
+            width: 40px;
+            padding: 2px;
+            cursor: pointer;
+        }
+
+        .footer {
+            margin-top: 40px;
+            display: flex;
+            gap: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="utils-header">
+        <h1>⚙️ PANEL DE AJUSTES</h1>
+        <p>Configuración del sistema y perfil del jugador</p>
+    </div>
+
+    <div class="grid">
+        <!-- Audio -->
+        <div class="card">
+            <h3>🔊 AUDIO Y MÚSICA</h3>
+            <div class="row">
+                <span class="label">MÚSICA BGM</span>
+                <button id="btn-bgm" class="btn-toggle active" onclick="toggleBGM()">ACTIVADA</button>
+            </div>
+            <div class="row">
+                <span class="label">VOLUMEN BGM</span>
+                <button id="btn-vol" class="btn-toggle active" onclick="toggleVolume()">ALTO</button>
+            </div>
+            <div class="row">
+                <span class="label">EFECTOS (SFX)</span>
+                <button id="btn-sfx" class="btn-toggle active" onclick="toggleSFX()">ACTIVADO</button>
+            </div>
+        </div>
+
+        <!-- Perfil -->
+        <div class="card">
+            <h3>👤 PERFIL DEL JUGADOR</h3>
+            <div class="row">
+                <span class="label">APODO</span>
+                <input type="text" id="inp-name" maxlength="10">
+            </div>
+            <div class="row">
+                <span class="label">COLOR (SKIN)</span>
+                <input type="color" id="inp-skin">
+            </div>
+            <div class="row" style="justify-content:center; margin-top:25px;">
+                <button class="btn-option gold" onclick="saveProfile()"
+                    style="padding:10px 15px; font-size:7px;">GUARDAR PERFIL</button>
+            </div>
+        </div>
+
+        <!-- Sistema -->
+        <div class="card"
+            style="grid-column: 1 / -1; display:flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 20px;">
+            <div style="text-align:center;">
+                <span class="label">MODO PANTALLA</span><br><br>
+                <button class="btn-toggle" onclick="toggleFS()">COMPLETA</button>
+            </div>
+            <div style="text-align:center;">
+                <span class="label">RENDERIZADO</span><br><br>
+                <button id="btn-render" class="btn-toggle active" onclick="toggleRender()">PIXELADO</button>
+            </div>
+            <div style="text-align:center;">
+                <span class="label" style="color:#ff2d78;">⚠ ZONA DE PELIGRO ⚠</span><br><br>
+                <button class="btn-toggle danger" onclick="resetAll()">BORRAR DATOS DE SESIÓN</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <button onclick="history.back()" class="btn-option" style="cursor:pointer;">◀ VOLVER</button>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="sounds.js"></script>
+    <script src="casino.js"></script>
+    <script>
+        // Init logic
+        document.getElementById('inp-name').value = STATE.username || 'JUGADOR';
+        document.getElementById('inp-skin').value = STATE.skin || '#2563eb';
+
+        // Variables state
+        let bgmOn = true;
+        let volHigh = true;
+        let sfxOn = localStorage.getItem('cc_mute') !== '1';
+        let renderPixel = localStorage.getItem('cc_render') !== 'smooth';
+
+        // Apply initial UI states
+        if (!sfxOn) {
+            const b = document.getElementById('btn-sfx');
+            b.classList.remove('active');
+            b.textContent = 'SILENCIADO';
+        }
+        if (!renderPixel) {
+            const b = document.getElementById('btn-render');
+            b.classList.remove('active');
+            b.textContent = 'SUAVIZADO';
+            document.body.style.imageRendering = 'auto';
+        } else {
+            document.body.style.imageRendering = 'pixelated';
+        }
+
+        function toggleBGM() {
+            bgmOn = !bgmOn;
+            const b = document.getElementById('btn-bgm');
+            b.classList.toggle('active', bgmOn);
+            b.textContent = bgmOn ? 'ACTIVADA' : 'MUTED';
+            window.parent.postMessage({ cmd: bgmOn ? 'UNMUTE' : 'MUTE' }, '*');
+            showToast('MÚSICA ' + (bgmOn ? 'ACTIVADA' : 'SILENCIADA'));
+        }
+
+        function toggleVolume() {
+            volHigh = !volHigh;
+            const b = document.getElementById('btn-vol');
+            b.classList.toggle('active', volHigh);
+            b.textContent = volHigh ? 'ALTO' : 'BAJO';
+            window.parent.postMessage({ cmd: volHigh ? 'VOL_UP' : 'VOL_DOWN' }, '*');
+            showToast('VOLUMEN ' + (volHigh ? 'ALTO' : 'BAJO'));
+        }
+
+        function toggleSFX() {
+            sfxOn = !sfxOn;
+            const b = document.getElementById('btn-sfx');
+            b.classList.toggle('active', sfxOn);
+            b.textContent = sfxOn ? 'ACTIVADO' : 'SILENCIADO';
+            localStorage.setItem('cc_mute', sfxOn ? '0' : '1');
+            if (typeof SFX !== 'undefined') SFX.muted = !sfxOn;
+            showToast('EFECTOS ' + (sfxOn ? 'ACTIVADOS' : 'SILENCIADOS'));
+        }
+
+        function toggleRender() {
+            renderPixel = !renderPixel;
+            const b = document.getElementById('btn-render');
+            b.classList.toggle('active', renderPixel);
+            b.textContent = renderPixel ? 'PIXELADO' : 'SUAVIZADO';
+            localStorage.setItem('cc_render', renderPixel ? 'pixel' : 'smooth');
+            document.body.style.imageRendering = renderPixel ? 'pixelated' : 'auto';
+            showToast('RENDERIZADO ' + (renderPixel ? 'PIXELADO' : 'SUAVIZADO'));
+        }
+
+        function saveProfile() {
+            const n = document.getElementById('inp-name').value.trim();
+            const s = document.getElementById('inp-skin').value;
+            if (n) STATE.username = n.toUpperCase();
+            STATE.skin = s;
+            saveState();
+            showToast('¡PERFIL GUARDADO!', '#39ff14');
+            if (typeof SFX !== 'undefined') SFX.win();
+        }
+
+        function toggleFS() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().then(() => {
+                    showToast('PANTALLA COMPLETA ACTIVADA');
+                }).catch(err => {
+                    showToast('ERROR AL ACTIVAR', '#ff2d78');
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    showToast('PANTALLA COMPLETA SALIENDO');
+                }
+            }
+        }
+
+        function resetAll() {
+            if (confirm('¿ESTÁS SEGURO? Se borrarán TODO tu progreso y fichas.')) {
+                localStorage.clear();
+                window.parent.postMessage({ cmd: 'MUTE' }, '*');
+                window.location.href = 'login.html';
+            }
+        }
+    </script>
+</body>
+
+</html>

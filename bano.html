@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chips & Chips — Baño</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="game.css"/>
+  <style>
+    .game-main { background:linear-gradient(180deg,#0a1a2e,#050d17); flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:20px; overflow-y:auto; }
+    .bano-room { width:100%; max-width:560px; background:linear-gradient(180deg,#1a1a2a,#0d0d18); border:4px solid rgba(0,245,255,.3); padding:30px; display:flex; flex-direction:column; align-items:center; gap:20px; }
+    /* Pixel toilet */
+    .toilet { display:flex; flex-direction:column; align-items:center; cursor:pointer; transition:transform .2s; }
+    .toilet:hover { transform:scale(1.08); }
+    .toilet-tank { width:50px; height:30px; background:#d0d8e0; border:3px solid #8090a0; border-radius:2px; }
+    .toilet-lid  { width:60px; height:14px; background:#e8eef4; border:3px solid #8090a0; border-radius:3px 3px 0 0; margin-top:2px; }
+    .toilet-bowl { width:60px; height:36px; background:#d0d8e0; border:3px solid #8090a0; border-radius:0 0 30px 30px; }
+    .toilet-base { width:44px; height:10px; background:#b0bbc8; border:2px solid #8090a0; border-radius:0 0 4px 4px; }
+    /* Pixel sink */
+    .sink { display:flex; flex-direction:column; align-items:center; cursor:pointer; transition:transform .2s; }
+    .sink:hover { transform:scale(1.08); }
+    .sink-top  { width:60px; height:24px; background:#c8d4de; border:3px solid #8090a0; border-radius:4px 4px 0 0; }
+    .sink-bowl { width:56px; height:20px; background:#d8e4ee; border:2px solid #8090a0; border-bottom:none; }
+    .sink-drain{ width:8px; height:6px; background:#555; margin-top:2px; border-radius:2px; }
+    .sink-pipe { width:6px; height:30px; background:#aaa; border:1px solid #888; }
+    /* Mirror */
+    .bano-mirror { width:100px; height:70px; background:linear-gradient(135deg,rgba(0,200,255,.08),rgba(0,80,120,.12)); border:4px solid #3a4a5a; }
+    .room-items { display:flex; gap:40px; align-items:flex-end; justify-content:center; }
+    .item-label { color:rgba(255,255,255,.5); font-size:6px; text-align:center; margin-top:6px; letter-spacing:1px; }
+    .secret-msg { color:var(--gold); font-size:8px; text-align:center; text-shadow:0 0 10px var(--gold); display:none; padding:12px; border:2px solid var(--gold); background:rgba(0,0,0,.6); }
+    .secret-msg.show { display:block; }
+    .bano-sign { color:var(--neon-cyan); font-size:10px; letter-spacing:3px; text-shadow:0 0 10px var(--neon-cyan); }
+    /* Tile floor */
+    .bano-floor { width:100%; height:20px; background:repeating-linear-gradient(90deg,#1a1a2e 0px,#1a1a2e 20px,#15152a 20px,#15152a 22px); border-top:2px solid rgba(255,255,255,.05); }
+    /* Wall tiles */
+    .bano-wall { width:100%; height:16px; background:repeating-linear-gradient(90deg,#1e2040 0px,#1e2040 30px,#18183a 30px,#18183a 32px); }
+  </style>
+</head>
+<body>
+<div class="particles" id="particles"></div>
+<div class="top-bar">
+  <a href="bar.html" class="btn-back">◀ VOLVER</a>
+  <div class="top-bar-center">🚻 BAÑO</div>
+  <div class="fichas-box"><span class="fichas-label">FICHAS:</span><span class="fichas-count">0</span></div>
+</div>
+<div class="game-area">
+<div class="game-main">
+  <div class="bano-room">
+    <div id="luck-status"><span>🍀 SUERTE:</span><span id="luck-val">0</span></div>
+    <div class="bano-sign">🚻 BAÑO</div>
+    <div class="bano-wall"></div>
+
+    <!-- Mirror on wall -->
+    <div class="bano-mirror" onclick="lookMirror()" style="cursor:pointer;" title="Mirarte"></div>
+
+    <div class="room-items">
+      <!-- Toilet -->
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="toilet" onclick="useToilet()">
+          <div class="toilet-tank"></div>
+          <div class="toilet-lid"></div>
+          <div class="toilet-bowl"></div>
+          <div class="toilet-base"></div>
+        </div>
+        <div class="item-label">WC</div>
+      </div>
+      <!-- Sink -->
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="sink" onclick="useSink()">
+          <div class="sink-top"></div>
+          <div class="sink-bowl"></div>
+          <div class="sink-drain"></div>
+          <div class="sink-pipe"></div>
+        </div>
+        <div class="item-label">LAVABO</div>
+      </div>
+    </div>
+
+    <div class="bano-floor"></div>
+
+    <div class="secret-msg" id="secret-msg">
+      🌟 SECRETO DESBLOQUEADO 🌟<br/>
+      <span style="font-size:7px;color:rgba(255,255,255,.7);">Encontraste el baño. +10 fichas bonus.</span>
+    </div>
+
+    <div style="color:rgba(255,255,255,.3);font-size:6px;text-align:center;letter-spacing:1px;">
+      Haz clic en los objetos para interactuar
+    </div>
+  </div>
+</div>
+<div class="missions-panel">
+  <div class="missions-title">MISIONES ACTIVAS</div>
+  <div class="mission-list">
+    <div class="mission-item">🚻 Visita el baño<br/><span class="mission-reward">+10 fichas</span></div>
+    <div class="mission-item">🔍 Descubre el secreto<br/><span class="mission-reward">+50 fichas</span></div>
+  </div>
+</div>
+</div>
+<div class="bottom-bar">
+  <a href="bar.html" class="btn-option">🏠 BAR</a>
+  <a href="utils.html" class="btn-option">⚙️ AJUSTES</a>
+  <a href="hub.html" class="btn-option">🏠 RECEPCIÓN</a>
+</div>
+<div class="toast" id="toast"></div>
+<script src="sounds.js"></script><script src="casino.js"></script>
+let visited=false;
+function useToilet(){ showToast('🚽 ...(necesitabas eso)','#00f5ff'); }
+function useSink(){ showToast('🚿 Manos limpias = mejor suerte','#39ff14'); }
+function lookMirror(){
+    showToast('Te ves bien 😎','#00f5ff');
+}
+</script>
+</body>
+</html>

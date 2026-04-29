@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Chips & Chips Casino</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body {
+      margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000;
+    }
+    iframe.game-frame {
+      width: 100vw; height: 100vh; border: none; display: block;
+    }
+    #yt-player-container {
+      position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="yt-player-container"></div>
+  <iframe class="game-frame" src="login.html" id="game-frame"></iframe>
+
+  <script>
+    let ytPlayer = null;
+    let currentId = null;
+    let isMuted = false;
+    let musicStarted = false;
+
+    // Load YT API
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    function loadTrack(vidId) {
+       if (currentId === vidId) return;
+       currentId = vidId;
+       if (ytPlayer && ytPlayer.loadVideoById) {
+          ytPlayer.loadVideoById(vidId);
+          ytPlayer.setVolume(25);
+       } else {
+          ytPlayer = new YT.Player('yt-player-container', {
+            height: '10', width: '10',
+            videoId: vidId,
+            playerVars: { 'autoplay': 1, 'loop': 1, 'playlist': vidId, 'controls': 0, 'enablejsapi': 1 },
+            events: {
+              'onReady': (e) => {
+                 ytPlayer.setVolume(25);
+                 if (!isMuted) ytPlayer.playVideo();
+              },
+              'onStateChange': (e) => {
+                 if(e.data === YT.PlayerState.ENDED) ytPlayer.playVideo();
+              }
+            }
+          });
+       }
+    }
+
+    window.addEventListener('message', (e) => {
+       const msg = e.data;
+       if (!msg || !msg.cmd) return;
+
+       if (msg.cmd === 'REQ_BG_MUSIC') {
+          musicStarted = true;
+          if (isMuted) return;
+          if (msg.page === 'login') loadTrack('OV-WmTBumjw'); // Lluvia
+          else loadTrack('AqY4RtNeJOI'); // Jazz
+       }
+       else if (msg.cmd === 'FORCE_UNMUTE') {
+          // Browser intervention hack: force play and unmute when user explicitly interacts
+          if (ytPlayer && ytPlayer.unMute) {
+             ytPlayer.unMute();
+             ytPlayer.setVolume(25);
+             ytPlayer.playVideo();
+          }
+       }
+       else if (msg.cmd === 'MUTE') {
+          isMuted = true;
+          if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+       }
+       else if (msg.cmd === 'UNMUTE') {
+          isMuted = false;
+          musicStarted = true;
+          if (ytPlayer && ytPlayer.playVideo) {
+              ytPlayer.playVideo();
+          } else if (currentId) {
+              loadTrack(currentId);
+          }
+       }
+       else if (msg.cmd === 'VOL_DOWN') {
+          if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(5);
+       }
+       else if (msg.cmd === 'VOL_UP') {
+          if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(25);
+       }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="eas">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chips & Chips — Casino Floor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="game.css"/>
+  <style>
+    html, body { overflow: hidden; height: 100%; }
+    body { display: flex; flex-direction: column; }
+    .game-area { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+    #floor-canvas {
+      display: block;
+      width: 100%; height: 100%;
+      image-rendering: pixelated;
+      cursor: default;
+    }
+    /* Scanlines off on this page */
+    #scanlines { display: none !important; }
+
+    /* Tooltip label */
+    #table-tooltip {
+      position: absolute;
+      background: rgba(0,10,20,0.97);
+      border: 3px solid #00f5ff;
+      color: #00f5ff;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 7px;
+      padding: 7px 14px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      box-shadow: 0 0 14px rgba(0,245,255,0.5);
+      z-index: 40;
+      letter-spacing: 1px;
+    }
+    #table-tooltip.show { opacity: 1; }
+    #table-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%; left: 50%; transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #00f5ff;
+    }
+
+    /* Click ripple */
+    .click-ripple {
+      position: absolute; border-radius: 50%;
+      background: rgba(255,50,50,0.35);
+      width: 12px; height: 12px;
+      transform: translate(-50%,-50%) scale(0);
+      animation: rpl 0.5s ease-out forwards;
+      pointer-events: none; z-index: 50;
+    }
+    @keyframes rpl { to { transform: translate(-50%,-50%) scale(14); opacity: 0; } }
+
+    /* LOCKED OVERLAY MODAL */
+    #locked-overlay {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7);
+      z-index: 300;
+      justify-content: center;
+      align-items: center;
+    }
+    #locked-overlay.show {
+      display: flex;
+    }
+    #locked-modal {
+      background: rgba(10,5,20,0.97);
+      border: 4px solid #ff2d78;
+      border-radius: 8px;
+      padding: 30px 40px;
+      text-align: center;
+      max-width: 400px;
+      width: 80%;
+      box-shadow: 0 0 60px rgba(255,45,120,0.5), inset 0 0 30px rgba(255,45,120,0.1);
+      animation: lockedShake 0.4s ease-out;
+    }
+    @keyframes lockedShake {
+      0% { transform: scale(0.8) rotate(-2deg); opacity: 0; }
+      50% { transform: scale(1.05) rotate(1deg); }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    #locked-modal .lock-icon {
+      font-size: 48px;
+      display: block;
+      margin-bottom: 15px;
+      animation: lockBounce 1s ease-in-out infinite;
+    }
+    @keyframes lockBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    #locked-modal .lock-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 12px;
+      color: #ff2d78;
+      margin-bottom: 12px;
+      text-shadow: 0 0 15px rgba(255,45,120,0.6);
+    }
+    #locked-modal .lock-game {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      color: #ffd700;
+      margin-bottom: 8px;
+    }
+    #locked-modal .lock-msg {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 7px;
+      color: #aaa;
+      line-height: 2;
+      margin-bottom: 20px;
+    }
+    #locked-modal .lock-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      padding: 10px 24px;
+      background: linear-gradient(180deg, #ff4d8a 0%, #ff2d78 50%, #cc1155 100%);
+      border: 3px solid #ff6b9d;
+      border-bottom-color: #990044;
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 #660033;
+      transition: transform 0.1s;
+    }
+    #locked-modal .lock-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.15);
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOP HUD -->
+<div class="top-bar">
+  <a href="hub.html" class="btn-back">◀ LOBBY</a>
+  <div class="top-bar-center">🎰 CASINO FLOOR — ELIGE TU MESA</div>
+  <div class="fichas-box">
+    <span class="fichas-label">FICHAS:</span>
+    <span class="fichas-count">0</span>
+  </div>
+</div>
+
+<!-- CANVAS AREA -->
+<div class="game-area" id="game-area">
+  <canvas id="floor-canvas"></canvas>
+  <div id="table-tooltip"></div>
+  <div id="luck-status"><span>🍀 SUERTE:</span><span id="luck-val">0</span></div>
+  
+  <!-- LOCKED OVERLAY -->
+  <div id="locked-overlay">
+    <div id="locked-modal">
+      <span class="lock-icon">🔒</span>
+      <div class="lock-title">MESA CERRADA</div>
+      <div class="lock-game" id="locked-game-name">---</div>
+      <div class="lock-msg" id="locked-game-msg">Esta mesa no está disponible en este momento. El casino está en mantenimiento.</div>
+      <button class="lock-btn" onclick="closeLocked()">◀ VOLVER</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM HUD -->
+<div class="bottom-bar">
+  <a href="hub.html" class="btn-option">🏠 RECEPCIÓN</a>
+  <a href="utils.html" class="btn-option">⚙️ AJUSTES</a>
+  <a href="bar.html" class="btn-option">🍺 BAR</a>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="sounds.js"></script>
+<script src="casino.js"></script>
+<script>
+// ─────────────────────────────────────────────────
+//  CANVAS SETUP
+// ─────────────────────────────────────────────────
+const canvas = document.getElementById('floor-canvas');
+const ctx    = canvas.getContext('2d');
+const area   = document.getElementById('game-area');
+
+function resize() {
+  canvas.width  = area.clientWidth;
+  canvas.height = area.clientHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+// ─────────────────────────────────────────────────
+//  PIXEL ART HELPERS
+// ─────────────────────────────────────────────────
+function px(x)  { return Math.round(x); }
+function rect(x,y,w,h,fill,stroke,sw=2) {
+  ctx.fillStyle = fill;
+  ctx.fillRect(px(x),px(y),px(w),px(h));
+  if (stroke) { ctx.strokeStyle=stroke; ctx.lineWidth=sw; ctx.strokeRect(px(x)+sw/2,px(y)+sw/2,px(w)-sw,px(h)-sw); }
+}
+function circle(x,y,r,fill,stroke,sw=2) {
+  ctx.beginPath(); ctx.arc(px(x),px(y),r,0,Math.PI*2);
+  ctx.fillStyle=fill; ctx.fill();
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=sw;ctx.stroke();}
+}
+function text(str,x,y,color,size,align='center') {
+  ctx.font=size+'px "Press Start 2P"';
+  ctx.fillStyle=color; ctx.textAlign=align; ctx.textBaseline='middle';
+  ctx.fillText(str,px(x),px(y));
+}
+function shadow(x,y,color,blur) {
+  ctx.shadowColor=color; ctx.shadowBlur=blur;
+}
+function noShadow() { ctx.shadowBlur=0; ctx.shadowColor='transparent'; }
+
+// ─────────────────────────────────────────────────
+//  CARPET PATTERN (pixel diamond)
+// ─────────────────────────────────────────────────
+function drawCarpet() {
+  const W=canvas.width, H=canvas.height;
+  // Base deep red
+  ctx.fillStyle='#5a0a0a';
+  ctx.fillRect(0,0,W,H);
+  
+  // Carpet pattern (diamond grid)
+  const sz=32;
+  ctx.strokeStyle='rgba(120,5,5,0.4)';
+  ctx.lineWidth=2;
+  for(let x=-sz; x<W+sz; x+=sz) {
+    for(let y=0; y<H+sz; y+=sz) {
+       ctx.strokeRect(px(x+((y/sz|0)%2?sz/2:0)), px(y), sz, sz);
+    }
+  }
+  
+  // Golden border/trim around the room
+  ctx.strokeStyle='rgba(212,160,64,0.3)';
+  ctx.lineWidth=8;
+  ctx.strokeRect(10,10,W-20,H-20);
+
+  // Darker vignette for DEPTH
+  const gVig=ctx.createRadialGradient(W/2,H/2,H*0.2, W/2,H/2,H);
+  gVig.addColorStop(0,'transparent');
+  gVig.addColorStop(1,'rgba(0,0,0,0.5)');
+  ctx.fillStyle=gVig;
+  ctx.fillRect(0,0,W,H);
+}
+
+// ─────────────────────────────────────────────────
+//  WALL + PILLARS + NEON SIGN
+// ─────────────────────────────────────────────────
+function drawWall() {
+  const W=canvas.width;
+  const wallH=70;
+  // Wood wall
+  const wg=ctx.createLinearGradient(0,0,0,wallH);
+  wg.addColorStop(0,'#c8a060'); wg.addColorStop(0.6,'#9a7040'); wg.addColorStop(1,'#6a4820');
+  ctx.fillStyle=wg; ctx.fillRect(0,0,W,wallH);
+  // Wall planks horizontal lines
+  ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1;
+  for(let y=12;y<wallH;y+=14){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+  // Bottom border of wall
+  rect(0,wallH-6,W,6,'#4a2c0a');
+  rect(0,wallH,W,4,'rgba(0,0,0,0.5)');
+}
+
+function drawPillar(x,wallH) {
+  const pw=22, ph=canvas.height-wallH+wallH;
+  // Pillar shadow
+  rect(x+pw,wallH,6,canvas.height-wallH,'rgba(0,0,0,0.2)');
+  // Pillar body
+  const pg=ctx.createLinearGradient(x,0,x+pw,0);
+  pg.addColorStop(0,'#d0a870'); pg.addColorStop(0.3,'#b08848'); pg.addColorStop(0.7,'#8a6030'); pg.addColorStop(1,'#6a4020');
+  ctx.fillStyle=pg; ctx.fillRect(px(x),wallH,pw,canvas.height-wallH);
+  // Edge highlight
+  rect(x,wallH,3,canvas.height-wallH,'rgba(255,255,255,0.12)');
+  // Capital (top block)
+  rect(x-4,wallH-10,pw+8,12,'#5a3810','#3a2408',2);
+  rect(x-2,wallH-4,pw+4,6,'#7a5020');
+  // Decorative dot
+  circle(x+pw/2,wallH+8,4,'#3a2510','#2a1808',1);
+}
+
+function drawNeonSign() {
+  const W=canvas.width;
+  const cx=W/2, cy=30;
+  const pulse = Math.sin(frame * 0.08) * 5;
+  // Glow
+  shadow(cx,cy,'rgba(255,215,0,0.8)',18 + pulse);
+  text('♠  CHIPS & CHIPS  ♠',cx,cy,'#ffd700',10);
+  noShadow();
+  // Subtitle
+  shadow(cx,cy+16,'rgba(0,245,255,0.5)',8 + pulse * 0.5);
+  text('CASINO & RESORT',cx,cy+16,'rgba(0,245,255,0.8)',6);
+  noShadow();
+}
+
+// ─────────────────────────────────────────────────
+//  PIXEL PLANT
+// ─────────────────────────────────────────────────
+function drawPlant(x,y) {
+  // Pot
+  ctx.fillStyle='#a07820';
+  ctx.beginPath();
+  ctx.moveTo(px(x-10),px(y));
+  ctx.lineTo(px(x+10),px(y));
+  ctx.lineTo(px(x+7),px(y+16));
+  ctx.lineTo(px(x-7),px(y+16));
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#6a4808';ctx.lineWidth=2;ctx.stroke();
+  // Dirt
+  rect(x-8,y+2,16,4,'#5a3010');
+  // Stem
+  rect(x-1,y-12,3,14,'#2a6a20');
+  // Leaves (pixel-style rectangles)
+  const leaves=[
+    [-12,-28,10,14,-20],[-4,-34,10,18,0],[4,-28,10,14,20],
+    [-8,-20,8,12,-10],[2,-20,8,12,10],
+  ];
+  leaves.forEach(([lx,ly,lw,lh,angle])=>{
+    ctx.save();
+    ctx.translate(px(x+lx+lw/2),px(y+ly+lh/2));
+    ctx.rotate(angle*Math.PI/180);
+    ctx.fillStyle=Math.abs(angle)<5?'#3dcc55':(angle<0?'#2eaa40':'#27993e');
+    ctx.fillRect(-lw/2,-lh/2,lw,lh);
+    ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=1;
+    ctx.strokeRect(-lw/2,-lh/2,lw,lh);
+    ctx.restore();
+  });
+}
+
+// ─────────────────────────────────────────────────
+//  TABLE DRAWING FUNCTIONS
+// ─────────────────────────────────────────────────
+
+// Blackjack D-shaped table (top-down)
+function drawBJTable(cx,cy,hover=false) {
+  const W=160,H=85;
+  const x=cx-W/2, y=cy;
+  
+  // Floor Shadow
+  circle(cx, cy+H*0.7, W*0.6, 'rgba(0,0,0,0.3)');
+
+  if(hover){shadow(cx,cy+H/2,'rgba(0,245,255,0.6)',25);}
+  // Table base / wood frame
+  ctx.fillStyle='#8b5e1a';
+  ctx.beginPath();
+  ctx.ellipse(px(cx),px(y+H*0.55),W/2+8,H/2+8,0,Math.PI,0);
+  ctx.rect(px(x-8),px(y+H*0.5),W+16,H*0.5+8);
+  ctx.fill();
+  ctx.strokeStyle='#c8a048'; ctx.lineWidth=4; ctx.stroke();
+  // Felt
+  const fg=ctx.createRadialGradient(cx,y+H*0.6,10,cx,y+H*0.5,W/2);
+  fg.addColorStop(0,'#2aaa48'); fg.addColorStop(1,'#0e4018');
+  ctx.fillStyle=fg;
+  ctx.beginPath();
+  ctx.ellipse(px(cx),px(y+H*0.55),W/2,H/2,0,Math.PI,0);
+  ctx.rect(px(x),px(y+H*0.5),W,H*0.5);
+  ctx.fill();
+  noShadow();
+  // Chip tray line
+  rect(cx-30,y+H*0.55,60,6,'#5b21b6','#7c3aed',1);
+  // Mini chips in tray
+  ['#c0392b','#2980b9','#27ae60','#ffd700','#8e44ad'].forEach((c,i)=>{
+    circle(cx-20+i*10,y+H*0.58,3,c,null);
+  });
+  // Label
+  ctx.save(); ctx.globalAlpha=0.22;
+  text('BLACKJACK',cx,y+H*0.35,'#fff',7);
+  ctx.restore();
+  // Dealer sprite at top
+  drawTinyDealer(cx,y+H*0.18,'#c68642','#1a1a2e');
+  // Seats at bottom
+  for(let i=0;i<5;i++){
+    const sx=x+16+i*((W-32)/4);
+    drawSeat(sx,y+H+4);
+    // Draw patrons at some seats
+    if((i+cx)%3===0) drawPatron(sx, y+H-2, NPC_DEFS[(i+2)%NPC_DEFS.length]);
+  }
+}
+
+function drawPatron(x,y,def) {
+  const bob = Math.sin(frame * 0.05 + x) * 1;
+  // Head
+  rect(x-4, y-22+bob, 8, 8, def.skin, '#333', 1);
+  // Hair
+  rect(x-4, y-24+bob, 8, 3, def.hair);
+  // Shirt
+  rect(x-5, y-14+bob, 10, 8, def.shirt, 'rgba(0,0,0,0.2)', 1);
+}
+
+// Roulette table (rectangle top-down)
+function drawRouletteTable(cx,cy,hover=false) {
+  const W=200,H=95;
+  const x=cx-W/2;
+  
+  // Floor Shadow
+  rect(x-10, cy+10, W+20, H+20, 'rgba(0,0,0,0.3)');
+
+  if(hover){shadow(cx,cy+H/2,'rgba(0,245,255,0.6)',25);}
+  // Frame
+  rect(x-6,cy-6,W+12,H+12,'#8b5e1a','#c8a048',4);
+  // Felt background
+  const fg=ctx.createRadialGradient(cx,cy+H/2,5,cx,cy+H/2,W/2);
+  fg.addColorStop(0,'#259940'); fg.addColorStop(1,'#0d3818');
+  rect(x,cy,W,H,fg);
+  noShadow();
+  // Wheel (left side)
+  const wx=x+45, wy=cy+H/2;
+  drawRouletteWheel(wx,wy,32);
+  // Betting grid (right side)
+  drawPixelBettingGrid(x+88,cy+6,W-96,H-12);
+  // Seats
+  for(let i=0;i<4;i++) {
+    const sx = x+16+i*((W-32)/3);
+    drawSeat(sx,cy+H+4);
+    if(i%2===0) drawPatron(sx, cy+H-2, NPC_DEFS[(i+4)%NPC_DEFS.length]);
+  }
+  for(let i=0;i<2;i++) {
+    drawSeat(x-14,(cy+20)+i*36);
+    drawSeat(x+W+2,(cy+20)+i*36);
+  }
+}
+
+function drawRouletteWheel(cx,cy,r) {
+  // Outer ring
+  circle(cx,cy,r,'#8b5e1a','#c8a048',3);
+  // Segments
+  const colors=['#c0392b','#111'];
+  const segs=18;
+  for(let i=0;i<segs;i++){
+    const a0=(i/segs)*Math.PI*2+rwAngle, a1=((i+1)/segs)*Math.PI*2+rwAngle;
+    ctx.beginPath();
+    ctx.moveTo(px(cx),px(cy));
+    ctx.arc(px(cx),px(cy),r-4,a0,a1);
+    ctx.closePath();
+    ctx.fillStyle=i===0?'#0a6e1a':colors[i%2]; ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;ctx.stroke();
+  }
+  // Center
+  circle(cx,cy,8,'#c8a048','#8b5e1a',2);
+  circle(cx,cy,3,'#fff',null);
+}
+
+function drawPixelBettingGrid(x,y,w,h) {
+  const cols=4,rows=3;
+  const cw=Math.floor(w/cols), rh=Math.floor(h/rows);
+  const redNums=[1,3,5,7];
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const isRed=redNums.includes(r*cols+c+1);
+      rect(x+c*cw,y+r*rh,cw-1,rh-1,isRed?'#a01010':'#111','rgba(255,255,255,0.15)',1);
+    }
+  }
+  // Green zero at top
+  rect(x,y-rh,w/2-1,rh-1,'#0a6e1a','rgba(255,255,255,0.15)',1);
+}
+
+// Poker oval table
+function drawPokerTable(cx,cy,hover=false) {
+  const rw=120,rh=60;
+  
+  // Floor Shadow
+  circle(cx, cy+10, rw+10, 'rgba(0,0,0,0.3)');
+
+  if(hover){shadow(cx,cy,'rgba(0,245,255,0.6)',25);}
+  // Wood rim
+  ctx.fillStyle='#8b5e1a';
+  ctx.beginPath();ctx.ellipse(px(cx),px(cy),rw+8,rh+8,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#c8a048';ctx.lineWidth=4;ctx.stroke();
+  // Felt
+  const fg=ctx.createRadialGradient(cx,cy,5,cx,cy,rw);
+  fg.addColorStop(0,'#226e32'); fg.addColorStop(1,'#0a2e10');
+  ctx.fillStyle=fg;
+  ctx.beginPath();ctx.ellipse(px(cx),px(cy),rw,rh,0,0,Math.PI*2);ctx.fill();
+  noShadow();
+  // Center pot chips
+  ['#ffd700','#c0392b','#2980b9'].forEach((c,i)=>circle(cx-10+i*10,cy,5,c,'rgba(0,0,0,0.3)',1));
+  // Label
+  ctx.save();ctx.globalAlpha=0.2;
+  text('POKER',cx,cy-8,'#fff',7);ctx.restore();
+  // Cards on table
+  drawTinyCard(cx-20,cy+10,'A','♠');
+  drawTinyCard(cx-8,cy+10,'K','♥',true);
+  drawTinyCard(cx+4,cy+10,'Q','♦',true);
+  // Dealer
+  drawTinyDealer(cx,cy-rh+12,'#d4a473','#2c3e50');
+  // Seats around oval
+  for(let i=0;i<5;i++){
+    const a=(i/5)*Math.PI+Math.PI*0.1;
+    const sx = cx+Math.cos(a)*(rw+14);
+    const sy = cy+Math.sin(a)*(rh+14);
+    drawSeat(sx, sy);
+    if(i%2===1) drawPatron(sx, sy-6, NPC_DEFS[(i+6)%NPC_DEFS.length]);
+  }
+}
+
+// Arcade machine (Crossy Road)
+function drawArcadeMachine(cx,cy,hover=false) {
+  const w=60,h=90;
+  const x=cx-w/2;
+  
+  // Floor Shadow
+  rect(x-5, cy+h-5, w+10, 10, 'rgba(0,0,0,0.4)');
+
+  if(hover){shadow(cx,cy+h/2,'rgba(39,174,96,0.6)',25);}
+  // Cabinet body
+  const bg=ctx.createLinearGradient(x,cy,x+w,cy);
+  bg.addColorStop(0,'#1a1a3e');bg.addColorStop(0.5,'#2a2a5e');bg.addColorStop(1,'#1a1a3e');
+  rect(x,cy,w,h,bg,'#3a3a8e',3);
+  // Rounded top
+  ctx.fillStyle='#2a2a5e';
+  ctx.beginPath();ctx.roundRect(px(x),px(cy),w,30,8);ctx.fill();
+  ctx.strokeStyle='#3a3a8e';ctx.lineWidth=3;ctx.stroke();
+  // Screen
+  rect(x+6,cy+8,w-12,40,'#0a180a','#27ae60',3);
+  // Frog sprite on screen
+  ctx.font='22px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🐸',px(cx),px(cy+28));
+  // Joystick
+  rect(cx-8,cy+52,8,6,'#555','#333',1);
+  circle(cx-4,cy+50,5,'#888','#555',1);
+  // Button
+  rect(cx+4,cy+52,10,8,'#c0392b','#7b241c',2);
+  // Bottom grill
+  for(let i=0;i<4;i++) rect(x+4+i*14,cy+h-18,10,12,'rgba(0,0,0,0.4)','#3a3a8e',1);
+  noShadow();
+}
+
+// Slot machines group
+function drawSlotMachines(x,y,hover=false) {
+  // Floor Shadow
+  rect(x-10, y+50, 150, 20, 'rgba(0,0,0,0.4)');
+
+  if(hover){shadow(x+60,y+35,'rgba(124,58,237,0.7)',25);}
+  const syms=['💎','⭐','🍒'];
+  for(let i=0;i<3;i++){
+    const mx=x+i*44;
+    const mg=ctx.createLinearGradient(mx,y,mx+38,y);
+    mg.addColorStop(0,'#2a0a5e');mg.addColorStop(0.5,'#380d80');mg.addColorStop(1,'#2a0a5e');
+    rect(mx,y,38,56,mg,'#7c3aed',3);
+    // Top light strip
+    rect(mx,y,38,6,'#a855f7','#7c3aed',1);
+    // Screen
+    rect(mx+4,y+8,30,22,'#0a0010','#5b21b6',2);
+    ctx.font='14px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(syms[i],px(mx+19),px(y+19));
+    // Spin button
+    rect(mx+8,y+34,22,10,'#c0392b','#7b241c',2);
+    // Base
+    rect(mx-2,y+54,42,8,'#5b21b6','#3b0764',2);
+  }
+  noShadow();
+}
+
+// Tiny seat
+function drawSeat(x,y) {
+  const sg=ctx.createLinearGradient(x-8,y,x+8,y+10);
+  sg.addColorStop(0,'#c8a048');sg.addColorStop(1,'#8b6010');
+  rect(x-8,y,16,10,sg,'#6a4808',2);
+  rect(x-5,y+10,10,4,'#5a3808');
+}
+
+// Tiny dealer on table
+function drawTinyDealer(x,y,skinColor,shirtColor) {
+  const t = frame + x; // offset by position to desync animations
+  const bob = Math.sin(t * 0.05) * 1.5;
+  const arm = Math.abs(Math.sin(t * 0.1)) * 3;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px(x),px(y+10),8,3,0,0,Math.PI*2); ctx.fill();
+  // Hair
+  rect(x-5,y-14-bob,10,4,'#1a0a00');
+  // Head
+  rect(x-5,y-10-bob,10,10,skinColor,'#5a3010',1);
+  // Eyes
+  rect(x-3,y-7-bob,2,2,'#111');
+  rect(x+1,y-7-bob,2,2,'#111');
+  // Shirt
+  rect(x-6,y-bob,12,10,shirtColor,'rgba(0,0,0,0.3)',1);
+  // White collar
+  rect(x-1,y-bob,3,6,'rgba(255,255,255,0.7)');
+  // Hands dealing
+  ctx.fillStyle=skinColor;
+  ctx.fillRect(px(x-10+arm),px(y+2-bob),4,4);
+  ctx.fillRect(px(x+6-arm),px(y+2-bob),4,4);
+}
+
+// Tiny card
+function drawTinyCard(x,y,val,suit,facedown=false) {
+  rect(x,y,12,18,facedown?'#1a1a4e':'#fff',facedown?'#3a3a8e':'#ccc',2);
+  if(!facedown){
+    ctx.font='6px "Press Start 2P"';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillStyle=['♥','♦'].includes(suit)?'#c0392b':'#111';
+    ctx.fillText(val,x+1,y+2);
+  }
+}
+
+// Chip pile decoration
+function drawChipPile(x,y) {
+  const colors=['#c0392b','#2980b9','#27ae60','#ffd700','#8e44ad'];
+  colors.forEach((c,i)=>{
+    rect(x+i%3*6-6,y-Math.floor(i/3)*5,14,5,c,'rgba(0,0,0,0.4)',1);
+  });
+}
+
+// ─────────────────────────────────────────────────
+//  NPC SYSTEM 
+// ─────────────────────────────────────────────────
+const NPC_DEFS = [
+  {skin:'#c68642',hair:'#1a0a00',shirt:'#c0392b',pants:'#1a1a2e'},
+  {skin:'#d4a473',hair:'#888888',shirt:'#2980b9',pants:'#0d0d1a'},
+  {skin:'#b5835a',hair:'#4a2c0a',shirt:'#27ae60',pants:'#0d1a0d'},
+  {skin:'#f0c898',hair:'#c8a048',shirt:'#8e44ad',pants:'#2e0757'},
+  {skin:'#c68642',hair:'#1a1a2e',shirt:'#e67e22',pants:'#1a0a00'},
+  {skin:'#8b5a2b',hair:'#222222',shirt:'#34495e',pants:'#1a252f'},
+  {skin:'#d4a473',hair:'#8b0000',shirt:'#c0392b',pants:'#1a0505'},
+  {skin:'#f0c898',hair:'#2c3e50',shirt:'#16a085',pants:'#0a2825'},
+];
+
+// Expanded pool for more variety
+const NPC_POOL = [...NPC_DEFS, ...NPC_DEFS.map(d=>({...d, shirt:'#222'}))];
+
+let npcs=[];
+function initNPCs() {
+  const W=canvas.width, H=canvas.height;
+  npcs = NPC_POOL.map(def=>({
+    def, x:120+Math.random()*(W-240), y:140+Math.random()*(H-240),
+    tx:0,ty:0,moving:false,pauseTick:0,
+    frame:0,frameTick:0,flip:false,
+  }));
+  npcs.forEach(n=>pickTarget(n));
+}
+
+function pickTarget(n) {
+  const W=canvas.width, H=canvas.height;
+  const wallH = 70;
+  // Keep them within the carpet area but away from walls
+  n.tx = 60 + Math.random() * (W - 120);
+  n.ty = wallH + 40 + Math.random() * (H - wallH - 100);
+  n.moving = true; n.pauseTick = 0;
+}
+
+function updateNPCs(){
+  npcs.forEach(n => {
+    if(n.pauseTick>0) {
+      n.pauseTick--; n.moving=false;
+      n.frameTick++; if(n.frameTick>=40){n.frameTick=0;n.frame=1-n.frame;}
+      if(n.pauseTick<=0) pickTarget(n);
+    } else {
+      const dx=n.tx-n.x, dy=n.ty-n.y, dist=Math.sqrt(dx*dx+dy*dy);
+      // Stop condition
+      if(dist<4) { 
+        n.moving=false; 
+        n.pauseTick=30+Math.random()*60|0; 
+      }
+      else {
+        n.moving=true;
+        const spd = 0.6+Math.random()*0.2;
+        n.x += (dx/dist)*spd; n.y += (dy/dist)*spd;
+        n.flip = dx<0;
+        n.frameTick++; if(n.frameTick>=10){n.frameTick=0; n.frame=1-n.frame;}
+      }
+    }
+  });
+}
+
+function drawNPC(n){
+  const {x,y,frame,flip,moving,def}=n;
+  ctx.save();
+  if(flip){ctx.translate(px(x),0);ctx.scale(-1,1);ctx.translate(-px(x),0);}
+  
+  // Real-time Shadow
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle='rgba(60,20,20,0.6)';
+  ctx.beginPath();ctx.ellipse(px(x+2),px(y+4),9,4,0,0,Math.PI*2);ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  const bob = moving ? (frame===0?-1:0) : (frame===0?1:0);
+
+  // Legs  
+  ctx.fillStyle=def.pants;
+  if(moving){
+    if(frame===0){
+      ctx.fillRect(px(x-4),px(y-7),4,9);
+      ctx.fillRect(px(x+1),px(y-5),4,7);
+    } else {
+      ctx.fillRect(px(x-4),px(y-5),4,7);
+      ctx.fillRect(px(x+1),px(y-7),4,9);
+    }
+  } else {
+    ctx.fillRect(px(x-4),px(y-6),4,8);
+    ctx.fillRect(px(x+1),px(y-6),4,8);
+  }
+
+  // Body / shirt
+  const by = y-16+bob;
+  ctx.fillStyle=def.shirt;
+  ctx.fillRect(px(x-5),px(by),10,11);
+  ctx.strokeStyle='rgba(0,0,0,0.4)';ctx.lineWidth=1;
+  ctx.strokeRect(px(x-5),px(by),10,11);
+  // White collar
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  ctx.fillRect(px(x-1),px(by),4,3);
+  
+  // Arms (swinging)
+  const armSwing = moving ? (frame===0?2:-2) : 0;
+  ctx.fillStyle=def.skin;
+  ctx.fillRect(px(x-3+armSwing),px(by+6),3,4);
+  
+  // Head
+  const hy = by-10;
+  ctx.fillStyle=def.skin;
+  ctx.fillRect(px(x-4),px(hy),9,10);
+  ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=1;
+  ctx.strokeRect(px(x-4),px(hy),9,10);
+  // Hair
+  ctx.fillStyle=def.hair;
+  ctx.fillRect(px(x-4),px(hy-3),9,5);
+  // Eyes
+  ctx.fillStyle='#111';
+  ctx.fillRect(px(x-2),px(hy+3),2,2);
+  ctx.fillRect(px(x+2),px(hy+3),2,2);
+  
+  ctx.restore();
+
+  // Luck Sparkles for High Luck Players
+  if ((STATE.luck || 0) > 4) {
+    const sparkleTick = (frame + x*10) % 60;
+    if (sparkleTick < 15) {
+       ctx.fillStyle='#ffd700';
+       const sSize = 2;
+       ctx.fillRect(px(x+Math.sin(frame*0.2)*10), px(y-20-Math.cos(frame*0.2)*5), sSize, sSize);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────
+//  TABLE DEFINITIONS  (positions computed at draw time)
+// ─────────────────────────────────────────────────
+let tables=[];
+let rwAngle=0,hoveredTable=-1;
+
+function buildTables(){
+  const W=canvas.width,H=canvas.height;
+  const wallH=70;
+  const midH=wallH+(H-wallH)*0.5;
+  tables=[
+    {id:'bj1',   label:'🃎 BLACKJACK — Min 20 fichas',   url:'blackjack.html',
+     x:W*0.16, y:wallH+65,  hw:90,  hh:60,  draw:(hov)=>drawBJTable(W*0.16,wallH+65,hov)},
+    {id:'poker', label:'🃏 POKER — Min 50 fichas',        url:'poker.html',
+     x:W*0.5,  y:wallH+85,  hw:130, hh:75,  draw:(hov)=>drawPokerTable(W*0.5,wallH+85,hov)},
+    {id:'bj2',   label:'🃎 BLACKJACK VIP — Min 50 fichas',url:'blackjack.html',
+     x:W*0.84, y:wallH+65,  hw:90,  hh:60,  draw:(hov)=>drawBJTable(W*0.84,wallH+65,hov)},
+    {id:'rl1',   label:'🎡 RULETA — Min 10 fichas',       url:'ruleta.html',
+     x:W*0.15, y:H-150, hw:110, hh:60, draw:(hov)=>drawRouletteTable(W*0.15,H-150,hov)},
+    {id:'crossy',label:'🐸 CROSSY ROAD — ¡Gratis!',       url:'crossy.html',
+     x:W*0.38, y:H-130,    hw:40,  hh:55,  draw:(hov)=>drawArcadeMachine(W*0.38,H-130,hov)},
+    {id:'slots', label:'🎰 SLOTS — 10 fichas/tirada',      url:'slots.html',
+     x:W*0.62, y:H-110,    hw:70,  hh:40,  draw:(hov)=>drawSlotMachines(W*0.62 - 66,H-110,hov)},
+    {id:'rl2',   label:'🎡 RULETA VIP — Min 10 fichas',   url:'ruleta.html',
+     x:W*0.85, y:H-150, hw:110, hh:60, draw:(hov)=>drawRouletteTable(W*0.85,H-150,hov)},
+  ];
+}
+
+// ─────────────────────────────────────────────────
+//  MAIN DRAW LOOP
+// ─────────────────────────────────────────────────
+let frame=0;
+function draw(){
+  const W = canvas.width;
+  const H = canvas.height;
+  const wallH = 70;
+  
+  rwAngle+=0.012;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // 1. Carpet
+  drawCarpet();
+
+  // 2. Chandelier glow spots
+  const glowPulse = Math.sin(frame * 0.04) * 0.02;
+  [
+    [canvas.width*0.25,canvas.height*0.35,'rgba(255,220,130,'+(0.07+glowPulse)+')',160],
+    [canvas.width*0.75,canvas.height*0.3,'rgba(255,220,130,'+(0.06-glowPulse)+')',140],
+    [canvas.width*0.5,canvas.height*0.6,'rgba(180,120,255,'+(0.05+glowPulse)+')',120],
+  ].forEach(([gx,gy,gc,gr])=>{
+    const rg=ctx.createRadialGradient(gx,gy,0,gx,gy,gr);
+    rg.addColorStop(0,gc);rg.addColorStop(1,'transparent');
+    ctx.fillStyle=rg;ctx.fillRect(0,0,canvas.width,canvas.height);
+  });
+
+  // 3. Chip piles (floor decorations)
+  drawChipPile(canvas.width*0.1,canvas.height*0.55);
+  drawChipPile(canvas.width*0.9,canvas.height*0.5);
+
+  // 4. Tables (build bounding boxes)
+  buildTables();
+  
+  // 5. Sort objects by depth (Y coordinate) for pseudo-3D
+  // We'll separate the drawing into: Back NPCs, Tables, Front NPCs
+  updateNPCs();
+
+  // NPCs walking behind tables (y < table.y + offset)
+  npcs.forEach(n => {
+    let isBehind = tables.some(t => n.y < t.y);
+    if(isBehind) drawNPC(n);
+  });
+
+  // Draw all tables
+  tables.forEach((t,i)=>t.draw(i===hoveredTable));
+
+  // Draw tables (LOCKED markers removed per request)
+  tables.forEach((t,i)=>t.draw(i===hoveredTable));
+
+  // NPCs walking in front of tables
+  npcs.forEach(n => {
+    let isBehind = tables.some(t => n.y < t.y);
+    if(!isBehind) drawNPC(n);
+  });
+
+  // 6. Wall (drawn last so it covers table tops near wall)
+  drawWall();
+  drawNeonSign();
+
+  // 7. Pillars (REMOVED: El usuario pidio quitarlos porque tapaban la vista)
+
+  // 8. Wall slot machines
+  [[W*0.03,wallH+10,'💎'],[W*0.03,wallH+80,'🍒'],
+   [W*0.95,wallH+10,'⭐'],[W*0.95,wallH+80,'7️⃣']].forEach(([mx,my,sym], idx)=>{
+    const isLit = (frame + idx * 20) % 60 < 30;
+    rect(mx,my,30,48,'#2a0a5e','#7c3aed',2);
+    // Bezel glow
+    if(isLit) {
+      ctx.save();
+      ctx.shadowBlur = 8; ctx.shadowColor = '#a855f7';
+      rect(mx,my,30,6,'#d8b4fe');
+      ctx.restore();
+    } else {
+      rect(mx,my,30,6,'#a855f7');
+    }
+    rect(mx+3,my+8,24,20,'#0a0010','#5b21b6',1);
+    ctx.font='11px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(sym,px(mx+15),px(my+18));
+    // Flashing button
+    const btnCol = isLit ? '#ff2d78' : '#c0392b';
+    rect(mx+6,my+32,18,8,btnCol,'#7b241c',1);
+    rect(mx-2,my+46,34,6,'#5b21b6','#3b0764',1);
+  });
+
+  // 9. Plants
+  drawPlant(W*0.04,  80+wallH);
+  drawPlant(W*0.96,  80+wallH);
+  drawPlant(W*0.04,  canvas.height-120);
+  drawPlant(W*0.96,  canvas.height-120);
+
+  // 10. Entrance marker
+  rect(W/2-40,canvas.height-8,80,8,'#4a2c0a','#6b3f10',2);
+  ctx.font='5px "Press Start 2P"';ctx.fillStyle='rgba(255,255,255,0.3)';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('▼ ENTRADA',W/2,canvas.height-4);
+
+  frame++;
+  requestAnimationFrame(draw);
+}
+
+// ─────────────────────────────────────────────────
+//  HOVER & CLICK DETECTION
+// ─────────────────────────────────────────────────
+const tooltip = document.getElementById('table-tooltip');
+
+function getHoveredTable(mx,my){
+  buildTables();
+  for(let i=0;i<tables.length;i++){
+    const t=tables[i];
+    if(mx>=t.x-t.hw&&mx<=t.x+t.hw&&my>=t.y-t.hh&&my<=t.y+t.hh*1.5)
+      return i;
+  }
+  return -1;
+}
+
+canvas.addEventListener('mousemove', e=>{
+  const r=canvas.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*(canvas.width/r.width);
+  const my=(e.clientY-r.top)*(canvas.height/r.height);
+  const prev=hoveredTable;
+  hoveredTable=getHoveredTable(mx,my);
+  canvas.style.cursor=hoveredTable>=0?'pointer':'default';
+  if(hoveredTable>=0){
+    const t=tables[hoveredTable];
+    tooltip.textContent=t.label;
+    // Position tooltip
+    const pctX=t.x/canvas.width, pctY=t.y/canvas.height;
+    const areaRect=area.getBoundingClientRect();
+    tooltip.style.left=(pctX*areaRect.width - tooltip.offsetWidth/2)+'px';
+    tooltip.style.top =(pctY*areaRect.height - 52)+'px';
+    tooltip.classList.add('show');
+  } else {
+    tooltip.classList.remove('show');
+  }
+});
+
+canvas.addEventListener('mouseleave',()=>{
+  hoveredTable=-1; tooltip.classList.remove('show');
+});
+
+canvas.addEventListener('click', e=>{
+  if(hoveredTable<0) return;
+  SFX.click();
+  const t=tables[hoveredTable];
+  
+  // Navigate to game (Functionality stripped inside game pages)
+  if(t.url) window.location.href = t.url;
+});
+
+// Locked overlay logic
+const lockedMessages = [
+  'Esta mesa no está disponible en este momento. Vuelve pronto.',
+  'El crupier está de descanso. Inténtalo más tarde.',
+  'Mesa en mantenimiento. Disculpa las molestias.',
+  'Acceso restringido. No tienes permiso para jugar aquí.',
+  'El casino está preparando esta zona. Paciencia.',
+];
+
+function showLocked(table) {
+  const overlay = document.getElementById('locked-overlay');
+  const gameName = document.getElementById('locked-game-name');
+  const gameMsg = document.getElementById('locked-game-msg');
+  
+  gameName.textContent = table.label;
+  gameMsg.textContent = lockedMessages[Math.floor(Math.random() * lockedMessages.length)];
+  overlay.classList.add('show');
+}
+
+function closeLocked() {
+  document.getElementById('locked-overlay').classList.remove('show');
+}
+
+// Close on overlay background click
+document.getElementById('locked-overlay').addEventListener('click', (e) => {
+  if(e.target.id === 'locked-overlay') closeLocked();
+});
+// Close on Escape key
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') closeLocked();
+});
+
+// ─────────────────────────────────────────────────
+//  START
+// ─────────────────────────────────────────────────
+function start() {
+  resize(); 
+  initNPCs();
+  draw();
+}
+window.addEventListener('resize',()=>{
+  resize();
+});
+start();
+</script>
+</body>
+</html>

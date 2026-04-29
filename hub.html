@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chips & Chips — Recepción Real</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="game.css" />
+  <style>
+    html,body{overflow:hidden;height:100%;background:#000;}
+    body{display:flex;flex-direction:column;}
+    
+    /* Hand-coded backdrop via CSS gradients and patterns */
+    #hub-wrap{
+      flex:1;position:relative;overflow:hidden;
+      background: #1a0a05; /* Deep mahogany base */
+    }
+    
+    #hub-canvas{
+      display:block;width:100%;height:100%;
+      image-rendering:pixelated;cursor:default;
+    }
+    
+    #hub-tooltip {
+      position: absolute;
+      background: rgba(10,5,30,0.95); border: 2px solid #00f5ff; color: #e0f8ff;
+      font-family: 'Press Start 2P', monospace; font-size: 7px;
+      padding: 8px 14px; pointer-events: none; opacity: 0; transition: opacity 0.1s;
+      white-space: nowrap; box-shadow: 0 0 14px rgba(0,245,255,0.4); z-index: 40;
+    }
+    #hub-tooltip.show { opacity: 1; }
+    
+    /* Glassmorphism UI */
+    #luck-status {
+      position: absolute; top: 20px; right: 20px;
+      background: rgba(10,5,30,0.6); backdrop-filter: blur(8px);
+      border: 2px solid var(--gold); border-radius: 4px;
+      padding: 10px 16px; color: var(--gold); font-size: 8px;
+      box-shadow: 0 0 20px rgba(255,215,0,0.3); z-index: 50;
+      animation: floatUI 3s ease-in-out infinite;
+    }
+    @keyframes floatUI { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+    #dialogue {
+      position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%);
+      background: rgba(5,0,20,0.85); backdrop-filter: blur(12px);
+      border: 3px solid #ff2d78; border-radius: 8px;
+      color: #fff; font-family: 'Press Start 2P', monospace; font-size: 9px;
+      padding: 20px 28px; max-width: 500px; width: 85%;
+      line-height: 2; display: none; z-index: 100;
+      box-shadow: 0 0 40px rgba(255,45,120,0.6);
+    }
+    
+    #shop-ui {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(5,2,15,0.98); backdrop-filter: blur(20px);
+      border: 3px solid #ffd700; border-radius: 8px;
+      width: 320px; padding: 20px; display: none; z-index: 200;
+      box-shadow: 0 0 100px rgba(255,215,0,0.3);
+    }
+    .shop-title { color: #ffd700; font-size: 10px; margin-bottom: 20px; text-shadow: 0 0 10px #ffd700; text-align:center; }
+    #shop-items-container {
+      max-height: 280px; overflow-y: auto; padding-right: 10px;
+      scrollbar-width: thin; scrollbar-color: #ffd700 transparent;
+    }
+    #shop-items-container::-webkit-scrollbar { width: 4px; }
+    #shop-items-container::-webkit-scrollbar-thumb { background: #ffd700; border-radius: 4px; }
+    
+    .shop-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255,255,255,0.02); border: 1.5px solid #333; border-radius: 4px;
+      padding: 10px; margin-bottom: 8px; transition: 0.2s; cursor: pointer;
+    }
+    .shop-item:hover { border-color: #ffd700; background: rgba(255,215,0,0.1); }
+    .item-info { display: flex; flex-direction: column; gap: 4px; }
+    .item-name { font-size: 7px; color: #fff; }
+    .item-desc { font-size: 5px; color: #888; }
+    .item-price { font-size: 7px; color: #39ff14; }
+    
+    .close-shop-btn {
+      position: absolute; top: 10px; right: 10px;
+      background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 50%, var(--gold-shadow) 100%);
+      border: 3px solid #8a6e08; border-top-color: #ffe84d; border-bottom-color: #6a5000;
+      color: #111; font-size: 7px; padding: 6px 12px; cursor: pointer;
+      font-family: 'Press Start 2P', monospace; box-shadow: 2px 2px 0 #3a2e00;
+      transition: transform 0.1s;
+    }
+    .close-shop-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+    
+    .shop-tabs {
+      display: flex; gap: 5px; margin-bottom: 15px;
+    }
+    .shop-tab {
+      flex: 1; padding: 6px; font-size: 5.5px; text-align: center;
+      background: rgba(255,255,255,0.05); color: #888; border: 1px solid #333;
+      cursor: pointer; border-radius: 3px; transition: 0.2s;
+    }
+    .shop-tab.active { background: #5b21b6; color: #fff; border-color: #ffd700; box-shadow: 0 0 10px rgba(124,58,237,0.3); }
+    
+    .bottom-bar { height: 75px; }
+    .btn-option { font-size: 9px; padding: 12px 25px; }
+    
+    /* EXP Progress Bar (Bottom) */
+    .exp-bar-container {
+      height: 25px;
+      background: rgba(0,0,0,0.8);
+      border-top: 2px solid #5b21b6;
+      border-bottom: 2px solid #5b21b6;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .exp-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #7c3aed, #00f5ff);
+      box-shadow: 0 0 15px rgba(0,245,255,0.4);
+      transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .exp-info {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 20px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 7px;
+      color: #fff;
+      text-shadow: 1px 1px #000;
+      pointer-events: none;
+    }
+
+    @keyframes rpl{to{transform:translate(-50%,-50%) scale(14);opacity:0;}}
+
+    .door-link {
+      position: absolute;
+      z-index: 100;
+      cursor: pointer;
+      border: 3px solid transparent;
+      border-radius: 8px;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .door-link:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(0, 245, 255, 0.5);
+      box-shadow: 0 0 30px rgba(0, 245, 255, 0.4), inset 0 0 15px rgba(0, 245, 255, 0.2);
+      transform: scale(1.02);
+    }
+    .door-link[href="casino-floor.html"]:hover {
+      border-color: rgba(255, 215, 0, 0.5);
+      box-shadow: 0 0 30px rgba(255, 215, 0, 0.4), inset 0 0 15px rgba(255, 215, 0, 0.2);
+    }
+  </style>
+</head>
+<body>
+<div class="top-bar">
+  <a href="login.html" class="btn-back">◀ SALIR</a>
+  <div class="top-bar-center">RECEPCIÓN — CHIPS &amp; CHIPS</div>
+  <div class="fichas-box"><span class="fichas-label">FICHAS:</span><span class="fichas-count">0</span></div>
+</div>
+
+<div class="game-area">
+  <div id="hub-wrap">
+    <canvas id="hub-canvas"></canvas>
+    
+    <!-- Mapeo de clics físico (Infalible) -->
+    <a href="bar.html" class="door-link" style="left:5%; top:10%; width:25%; height:45%;" title="B.A.R."></a>
+    <a href="casino-floor.html" class="door-link" style="right:5%; top:10%; width:25%; height:45%;" title="CASINO"></a>
+    
+    <div id="hub-tooltip"></div>
+    
+    <div id="luck-status">
+      <span>🍀 SUERTE:</span>
+      <span id="luck-val">0</span>
+    </div>
+
+    <div id="dialogue">
+      <div id="d-speaker" style="color:#00f5ff;font-size:7px;margin-bottom:10px;border-left:4px solid #00f5ff;padding-left:8px;">SPEAK</div>
+      <div id="d-text">...</div>
+      <span style="display:block;margin-top:15px;text-align:right;color:#ffd700;font-size:7px;cursor:pointer;" onclick="closeDialogue()">[ CONTINUAR ]</span>
+    </div>
+
+    <div id="shop-ui">
+      <div class="close-shop-btn" onclick="closeShop()">◀ VOLVER</div>
+      <div class="shop-title">💎 MERCADILLO MÍSTICO 💎</div>
+      <div class="shop-tabs">
+        <div class="shop-tab active" id="tab-luck" onclick="setShopTab('luck')">🍀 MEJORAS SUERTE</div>
+        <div class="shop-tab" id="tab-skin" onclick="setShopTab('skin')">👔 ATUENDOS</div>
+      </div>
+      <div id="shop-items-container"></div>
+    </div>
+  </div>
+
+  <div class="exp-bar-container">
+    <div class="exp-bar-fill" id="exp-fill"></div>
+    <div class="exp-info">
+      <span id="player-rank-ui">CARGANDO...</span>
+      <span id="exp-text-ui">0 / 0 EXP</span>
+    </div>
+  </div>
+
+  <div class="missions-panel">
+    <div class="missions-title">MISIONES</div>
+    <div class="mission-list" id="mission-list"></div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <a href="bar.html" class="btn-option">🍺 BAR</a>
+  <a href="utils.html" class="btn-option">⚙️ AJUSTES</a>
+  <a href="casino-floor.html" class="btn-option gold">🎰 CASINO</a>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="sounds.js"></script><script src="casino.js"></script>
+<script>
+const canvas = document.getElementById('hub-canvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('hub-wrap');
+const tooltip = document.getElementById('hub-tooltip');
+
+function resize(){ canvas.width=wrap.clientWidth; canvas.height=wrap.clientHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+const P=v=>Math.round(v);
+const fill = (x,y,w,h,c) => { if(c) ctx.fillStyle=c; ctx.fillRect(P(x),P(y),P(w),P(h)); };
+const circ = (x,y,r,c) => { if(c) ctx.fillStyle=c; ctx.beginPath(); ctx.arc(P(x),P(y),P(r),0,Math.PI*2); ctx.fill(); };
+const txt = (t,x,y,c,s) => { ctx.fillStyle=c; ctx.font=`${s}px "Press Start 2P"`; ctx.textAlign='center'; ctx.fillText(t,P(x),P(y)); };
+
+let tick=0;
+let hovered = null;
+
+// Interactables Map (EXTREME hitboxes for guaranteed interaction)
+const DOORS = [
+  {id:'bar', name:'PUERTA AL BAR', x1:0, y1:0, x2:0.4, y2:1.0},
+  {id:'casino', name:'PUERTA AL CASINO', x1:0.6, y1:0, x2:1.0, y2:1.0},
+  {id:'reception', name:'RECEPCIONISTA REAL', x1:0.4, y1:0.4, x2:0.6, y2:0.8},
+  {id:'shop', name:'EL MERCADER (TIENDA)', x:0.12, y:0.8, rx:80, ry:100},
+  {id:'safe', name:'CAJA FUERTE DIARIA', x:0.65, y:0.55, rx:50, ry:70},
+  {id:'records', name:'PANEL DE RÉCORDS', x:0.88, y:0.75, rx:60, ry:80}
+];
+
+function getHit(mx,my){
+  const W=canvas.width, H=canvas.height;
+  for(let n of DOORS){
+    if(n.x1 !== undefined){
+      if(mx >= W*n.x1 && mx <= W*n.x2 && my >= H*n.y1 && my <= H*n.y2) return n;
+    } else {
+      const cx=W*n.x, cy=H*n.y;
+      const dx=(mx-cx)/n.rx, dy=(my-cy)/n.ry;
+      if(dx*dx+dy*dy<1) return n;
+    }
+  }
+  return null;
+}
+
+function drawHallway() {
+  const W=canvas.width, H=canvas.height;
+  
+  // 1. Background / Floor (Grand Marble & Red Carpet)
+  fill(0,0,W,H,'#100803'); 
+  
+  // Floor Tiles (Marble)
+  for(let x=0; x<W; x+=80) {
+    for(let y=H*0.4; y<H; y+=40) {
+      fill(x, y, 78, 38, (x+y)%160===0 ? '#1a100a' : '#0d0805');
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      ctx.fillRect(x+10, y+10, 20, 1);
+    }
+  }
+
+  // Grand Carpet
+  const cW = W*0.35, cX = (W-cW)/2;
+  fill(cX, H*0.4, cW, H*0.6, '#400');
+  fill(cX+6, H*0.4, cW-12, H*0.6, '#700');
+  fill(cX, H*0.4, 6, H*0.6, '#b90');
+  fill(cX+cW-6, H*0.4, 6, H*0.6, '#b90');
+
+  // 2. Walls & Pillars
+  fill(0, 0, W, H*0.4, '#241408'); 
+  fill(0, H*0.35, W, 15, '#3a1f0a'); 
+  
+  // Architectural Pillars
+  const drawPillar = (px) => {
+    fill(px-25, 0, 50, H*0.4, '#1a0d05');
+    fill(px-15, 0, 30, H*0.4, '#2a1a0a');
+    fill(px-25, H*0.35, 50, 25, '#c90');
+    fill(px-25, 10, 50, 5, '#c90');
+  };
+  drawPillar(W*0.05); drawPillar(W*0.38); drawPillar(W*0.62); drawPillar(W*0.95);
+
+  // 3. Trophy Rack (Wall Decoration)
+  const tx = W*0.68, ty = H*0.15;
+  fill(tx, ty, 100, 60, '#1a0d05'); // Wood frame
+  fill(tx+5, ty+5, 90, 50, '#0a0503'); // Inner
+  const tr = STATE.trophies || [];
+  if(tr.includes('t_bronze')) fill(tx+15, ty+35, 10, 10, '#cd7f32');
+  if(tr.includes('t_silver')) fill(tx+35, ty+30, 12, 15, '#c0c0c0');
+  if(tr.includes('t_gold'))   fill(tx+55, ty+25, 15, 20, '#ffd700');
+  if(tr.includes('t_whale')) {
+     ctx.save(); ctx.shadowBlur=15; ctx.shadowColor='#00f5ff';
+     fill(tx+78, ty+20, 12, 25, '#b9f2ff'); ctx.restore();
+  }
+  txt('TROFEOS', tx+50, ty-10, '#b90', 6);
+
+  // 4. Safe (Interactable)
+  const safeX = W*0.65, safeY = H*0.58;
+  fill(safeX-20, safeY-30, 40, 45, '#333'); // Body
+  fill(safeX-16, safeY-26, 32, 37, '#222'); // Door
+  circ(safeX+8, safeY-8, 6, '#444'); // Handle
+  fill(safeX+8, safeY-8, 2, 2, '#fff');
+  fill(safeX-12, safeY-22, 10, 4, '#0f0'); // Digital screen
+
+  // 5. Chandeliers (Dynamic Light)
+  const drawChandelier = (cx) => {
+    const shine = 0.6 + Math.sin(tick*0.05)*0.2;
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    const g = ctx.createRadialGradient(cx, 50, 10, cx, 50, 150);
+    g.addColorStop(0, `rgba(255, 215, 0, ${shine*0.3})`); g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H); ctx.restore();
+    fill(cx-1, 0, 2, 40, '#b90'); fill(cx-15, 40, 30, 8, '#b90');
+    circ(cx-12, 52, 4, '#fff'); circ(cx, 56, 5, '#fff'); circ(cx+12, 52, 4, '#fff');
+  };
+  drawChandelier(W*0.22); drawChandelier(W*0.78);
+
+  // 6. Doors
+  const pW=90, pH=140, doorY=H*0.1;
+  const hB = hovered && hovered.id==='bar';
+  const hC = hovered && hovered.id==='casino';
+  
+  // ── BAR DOOR ──
+  const barDX = W*0.18;
+  const barPulse = Math.sin(tick*0.06)*0.3;
+  fill(barDX-pW/2-6, doorY-6, pW+12, pH+12, '#331a0a');
+  fill(barDX-pW/2, doorY, pW, pH, hB ? '#c86b25' : '#140803'); 
+  // Door panels
+  fill(barDX-pW/2+8, doorY+10, pW-16, pH/2-15, 'rgba(255,255,255,0.04)');
+  fill(barDX-pW/2+8, doorY+pH/2+5, pW-16, pH/2-15, 'rgba(255,255,255,0.04)');
+  // Door handle
+  fill(barDX+pW/2-18, doorY+pH/2-4, 6, 8, '#b90');
+  ctx.save(); ctx.shadowBlur = hB?40:15; ctx.shadowColor = '#00f5ff';
+  txt('B.A.R.', barDX, doorY-25, '#00f5ff', 12); ctx.restore();
+  // Hover glow + "ENTRAR" prompt
+  if(hB) {
+    ctx.save();
+    const barGlow = ctx.createRadialGradient(barDX, doorY+pH/2, 10, barDX, doorY+pH/2, pH);
+    barGlow.addColorStop(0, `rgba(0,245,255,${0.15+barPulse})`);
+    barGlow.addColorStop(1, 'transparent');
+    ctx.fillStyle = barGlow; ctx.fillRect(barDX-pH, doorY-pH/2, pH*2, pH*2);
+    const arrowBob = Math.sin(tick*0.15)*4;
+    txt('▶ ENTRAR ◀', barDX, doorY+pH+20+arrowBob, '#00f5ff', 8);
+    ctx.restore();
+  }
+  
+  // ── CASINO DOOR ──
+  const casDX = W*0.82;
+  const casPulse = Math.sin(tick*0.06+1)*0.3;
+  fill(casDX-pW/2-6, doorY-6, pW+12, pH+12, '#4d3a14');
+  fill(casDX-pW/2, doorY, pW, pH, hC ? '#621f64' : '#140803');
+  // Door panels
+  fill(casDX-pW/2+8, doorY+10, pW-16, pH/2-15, 'rgba(255,255,255,0.04)');
+  fill(casDX-pW/2+8, doorY+pH/2+5, pW-16, pH/2-15, 'rgba(255,255,255,0.04)');
+  // Door handle
+  fill(casDX-pW/2+12, doorY+pH/2-4, 6, 8, '#ffd700');
+  ctx.save(); ctx.shadowBlur = hC?40:15; ctx.shadowColor = '#ffd700';
+  txt('CASINO', casDX, doorY-25, '#ffd700', 12); ctx.restore();
+  // Hover glow + "ENTRAR" prompt 
+  if(hC) {
+    ctx.save();
+    const casGlow = ctx.createRadialGradient(casDX, doorY+pH/2, 10, casDX, doorY+pH/2, pH);
+    casGlow.addColorStop(0, `rgba(255,215,0,${0.15+casPulse})`);
+    casGlow.addColorStop(1, 'transparent');
+    ctx.fillStyle = casGlow; ctx.fillRect(casDX-pH, doorY-pH/2, pH*2, pH*2);
+    const arrowBob = Math.sin(tick*0.15)*4;
+    txt('▶ ENTRAR ◀', casDX, doorY+pH+20+arrowBob, '#ffd700', 8);
+    ctx.restore();
+  }
+
+  // 7. Merchant & Receptionist
+  // (Merchant)
+  const shopX = W*0.12, shopY = H*0.75;
+  const sB = Math.sin(tick*0.05)*5;
+  ctx.save(); ctx.shadowBlur=20; ctx.shadowColor='#5b21b6';
+  fill(shopX-8, shopY-44+sB, 16, 22, '#5b21b6'); fill(shopX-6, shopY-56+sB, 12, 14, '#ffccaa');
+  fill(shopX-11, shopY-60+sB, 22, 12, '#1a1a1a');
+  ctx.fillStyle = (Math.sin(tick*0.1)>0)?'#00f5ff':'rgba(0,245,255,0.4)';
+  fill(shopX-4, shopY-50+sB, 3, 3); fill(shopX+2, shopY-50+sB, 3, 3); ctx.restore();
+  txt('SHOP', shopX, shopY+20, '#ffd700', 8);
+
+  // (Receptionist)
+  const recX = W/2, recY = H*0.58;
+  const dW=160, dH=65;
+  const rB = Math.sin(tick*0.06)*2; const ry = recY-35-rB;
+  fill(recX-10, ry, 20, 22, '#111'); fill(recX-2, ry, 4, 18, '#fff');
+  fill(recX-8, ry-16, 16, 14, '#ffccaa'); fill(recX-9, ry-18, 18, 5, '#4b2c20');
+  fill(recX-dW/2, recY, dW, dH, '#1a0d05'); fill(recX-dW/2-6, recY-8, dW+12, 14, '#3a1f0a');
+  txt('RECEPCIÓN', recX, recY+35, '#c90', 8);
+
+  // 8. Records Post (Stand on the right)
+  const recsX = W*0.88, recsY = H*0.75;
+  fill(recsX-2, recsY-40, 4, 60, '#1a0d05'); // Pole
+  fill(recsX-30, recsY-40, 60, 40, '#3a1f0a'); // Sign
+  fill(recsX-26, recsY-36, 52, 32, '#000'); // Screen
+  txt('RÉCORDS', recsX, recsY-45, '#ffd700', 6);
+  if(tick%120 < 60) txt(`MAX: ${STATE.records.maxFichas}`, recsX, recsY-25, '#39ff14', 5);
+  else txt(`WIN: ${STATE.records.biggestWin}`, recsX, recsY-25, '#ffd700', 5);
+
+  // 9. PLAYER CHARACTER (With Customization)
+  const pX = W/2, playerY = H*0.85;
+  const pBth = Math.sin(tick*0.07)*3;
+  const rank = STATE.rank || 'PRINCIPIANTE';
+  
+  // Tags
+  ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = '#00f5ff';
+  txt(rank, pX, playerY-75, '#00f5ff', 7);
+  txt(STATE.username, pX, playerY-60, '#fff', 9);
+  const nextExpGoal = rank === 'PRINCIPIANTE' ? 500 : (rank === 'VETERANO' ? 2000 : (rank === 'APOSTADOR REAL' ? 5000 : 10000));
+  const expPct = Math.min(1, (STATE.exp || 0) / nextExpGoal);
+  fill(pX-20, playerY-52, 40, 3, 'rgba(0,0,0,0.5)'); fill(pX-20, playerY-52, 40 * expPct, 3, '#39ff14');
+  ctx.restore();
+
+  // Avatar
+  const pSkin = STATE.skin || '#2563eb';
+  fill(pX-10, playerY-20+pBth, 20, 22, pSkin); // Custom color
+  fill(pX-8, playerY-34+pBth, 16, 14, '#ffccaa'); // Face
+  fill(pX-10, playerY-36+pBth, 20, 6, '#4b2c20'); // Hair
+  fill(pX-6, playerY-30+pBth, 3, 3, '#111'); fill(pX+3, playerY-30+pBth, 3, 3, '#111');
+  
+  // Hat
+  const pHat = STATE.hat || 'none';
+  if(pHat === 'crown') {
+    fill(pX-12, playerY-45+pBth, 24, 10, '#ffd700'); // Crown base
+    fill(pX-12, playerY-52+pBth, 4, 8, '#ffd700'); fill(pX+8, playerY-52+pBth, 4, 8, '#ffd700');
+    fill(pX-2, playerY-55+pBth, 4, 12, '#ffd700');
+  } else if(pHat === 'top_hat') {
+    fill(pX-15, playerY-38+pBth, 30, 4, '#111'); // Brim
+    fill(pX-10, playerY-54+pBth, 20, 18, '#111'); // Body
+    fill(pX-10, playerY-42+pBth, 20, 4, '#ff2d78'); // Ribbon
+  } else if(pHat === 'cap') {
+    fill(pX-10, playerY-42+pBth, 20, 6, '#c0392b'); // Cap top
+    fill(pX+2, playerY-40+pBth, 12, 3, '#c0392b'); // Visor
+  }
+
+  // 10. LIGHTING
+  const hour = new Date().getHours();
+  const isNight = hour < 7 || hour > 19;
+  ctx.save(); ctx.globalCompositeOperation = 'multiply';
+  fill(0, 0, W, H, isNight ? 'rgba(20, 30, 80, 0.4)' : 'rgba(255, 230, 200, 0.1)');
+  ctx.restore();
+  ctx.globalCompositeOperation = 'screen';
+  const bloomG = ctx.createRadialGradient(W/2, H/2, 100, W/2, H/2, W);
+  bloomG.addColorStop(0, 'transparent'); bloomG.addColorStop(1, 'rgba(124, 58, 237, 0.05)');
+  ctx.fillStyle = bloomG; ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// Particles
+let particles = [];
+for(let i=0; i<30; i++) particles.push({x:Math.random(), y:Math.random(), s:1+Math.random()*2, spd:0.0005+Math.random()*0.001});
+
+function drawParticles() {
+  const W=canvas.width, H=canvas.height;
+  particles.forEach(p => {
+    p.y -= p.spd; if(p.y < 0) { p.y = 1; p.x = Math.random(); }
+    if(p.x > 0.4 && p.x < 0.6) ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    else if(p.x > 0.5 && p.x < 0.7) ctx.fillStyle = 'rgba(147,51,234,0.4)';
+    else ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    fill(p.x*W, p.y*H, p.s, p.s);
+  });
+}
+
+function draw(){
+  tick++;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawHallway();
+  if(tick%2===0) drawParticles();
+  
+  // Luck sync
+  const luckVal = document.getElementById('luck-val');
+  if(luckVal && typeof STATE !== 'undefined') luckVal.textContent = STATE.luck || 0;
+  
+  requestAnimationFrame(draw);
+}
+draw();
+
+// Interaction Logic
+// (getHit is defined above)
+
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*(canvas.width/r.width);
+  const my=(e.clientY-r.top)*(canvas.height/r.height);
+  hovered = getHit(mx,my);
+  canvas.style.cursor = hovered?'pointer':'default';
+  
+  tooltip.style.left = (e.clientX + 10) + 'px';
+  tooltip.style.top = (e.clientY + 10) + 'px';
+  
+  if(hovered){
+    tooltip.textContent = hovered.name;
+    tooltip.classList.add('show');
+  } else {
+    // Debug info: show coordinates if no object
+    tooltip.textContent = `X:${Math.round(mx)} Y:${Math.round(my)}`;
+    tooltip.classList.add('show'); // Keep it visible for debug
+  }
+});
+
+function handleInteraction(e) {
+  // Los links de las puertas ahora se manejan por HTML puro para evitar fallos.
+  if(!hovered) return;
+  
+  if(typeof SFX !== 'undefined' && SFX.click) SFX.click();
+
+  if(hovered.id==='shop') openShop();
+  else if(hovered.id==='safe') openSafe();
+  // Diálogo de recepción desactivado
+}
+
+canvas.addEventListener('click', handleInteraction);
+canvas.addEventListener('mousedown', handleInteraction);
+canvas.addEventListener('touchstart', handleInteraction);
+
+// Shop Logic
+let currentShopTab = 'luck';
+const SHOP_ITEMS = [
+  {id:'clover', name:'Trébol de Suerte', desc:'Más suerte en juegos.', price:250, luck:2, icon:'🍀', cat:'luck'},
+  {id:'gauntlet', name:'Guantelete+', desc:'Suerte premium.', price:1200, luck:5, icon:'🧤', cat:'luck'},
+  {id:'potion', name:'Poción de Aura', desc:'Brillo de fortuna.', price:3500, luck:12, icon:'🧪', cat:'luck'},
+  {id:'ring', name:'Anillo Dorado', desc:'Atracción de fichas.', price:8000, luck:25, icon:'💍', cat:'luck'},
+  {id:'artifact', name:'Reliquia Ancestral', desc:'Poder de los dioses.', price:25000, luck:60, icon:'🏺', cat:'luck'},
+  {id:'skin_red', name:'Traje Escarlata', desc:'Color de ropa rojo.', price:500, type:'skin', val:'#c0392b', icon:'👔', cat:'skin'},
+  {id:'skin_gold', name:'Vestido Dorado', desc:'Pura elegancia.', price:1500, type:'skin', val:'#f1c40f', icon:'✨', cat:'skin'},
+  {id:'hat_cap', name:'Gorra Deportiva', desc:'Estilo casual.', price:300, type:'hat', val:'cap', icon:'🧢', cat:'skin'},
+  {id:'hat_top', name:'Sombrero Copa', desc:'Caballero real.', price:2000, type:'hat', val:'top_hat', icon:'🎩', cat:'skin'},
+  {id:'hat_crown', name:'Corona Z', desc:'Rey del Casino.', price:10000, type:'hat', val:'crown', icon:'👑', cat:'skin'},
+];
+
+function setShopTab(tab) {
+  currentShopTab = tab;
+  document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  renderShop();
+}
+
+function openShop() {
+  document.getElementById('shop-ui').style.display='block';
+  renderShop();
+  typeof SFX!=='undefined' && SFX.dialogue();
+}
+
+function renderShop() {
+  const container = document.getElementById('shop-items-container');
+  if(!container) return;
+  container.innerHTML = '';
+  
+  const filtered = SHOP_ITEMS.filter(item => item.cat === currentShopTab);
+  
+  filtered.forEach(item => {
+    const hasItem = STATE.items.includes(item.id);
+    const div = document.createElement('div');
+    div.className = 'shop-item';
+    div.style.opacity = (hasItem && item.cat === 'luck') ? '0.5' : '1';
+    div.innerHTML = `
+      <div class="item-info">
+        <span class="item-name">${item.icon} ${item.name} ${hasItem?'(VENDIDO)':''}</span>
+        <span class="item-desc">${item.desc}</span>
+      </div>
+      <span class="item-price">${hasItem ? '---' : item.price + ' F'}</span>
+    `;
+    if(!hasItem) div.onclick = () => buyItem(item);
+    else if(item.cat === 'skin') div.onclick = () => equipItem(item);
+    container.appendChild(div);
+  });
+}
+
+function equipItem(item) {
+  if(item.type === 'skin') STATE.skin = item.val;
+  if(item.type === 'hat') STATE.hat = item.val;
+  saveState();
+  showToast(`¡Equipado: ${item.name}!`, '#39ff14');
+  closeShop();
+}
+
+function buyItem(item) {
+  if(STATE.fichas < item.price) { showToast('¡Faltan fichas!', '#ff2d78'); return; }
+  addFichas(-item.price);
+  STATE.items.push(item.id);
+  if(item.luck) STATE.luck += item.luck;
+  if(item.type === 'skin') STATE.skin = item.val;
+  if(item.type === 'hat') STATE.hat = item.val;
+  saveState();
+  showToast(`¡Comprado: ${item.name}! (+EXP)`, '#ffd700');
+  if(typeof addMissionProgress === 'function') addMissionProgress('m_shop', 1, 1, 200);
+  closeShop();
+}
+function closeShop() { document.getElementById('shop-ui').style.display='none'; }
+
+// Safe Logic
+function openSafe() {
+  const code = alert("CAJA FUERTE: Introduce el código de 3 cifras (Pista: es diario)");
+  const dailyCode = new Date().getDate().toString().padStart(3, '0');
+  if(code === dailyCode) {
+    if(localStorage.getItem('cc_safe_day') === dailyCode) {
+       showToast("Ya has abierto la caja hoy...", "#aaa");
+    } else {
+       localStorage.setItem('cc_safe_day', dailyCode);
+       addFichas(500);
+       showToast("¡CÓDIGO CORRECTO! +500 Fichas", "#ffd700");
+    }
+  } else {
+    showToast("Código incorrecto...", "#ff2d78");
+  }
+}
+
+function showDlg(name,text){
+  document.getElementById('d-speaker').textContent=name;
+  document.getElementById('d-text').textContent=text;
+  document.getElementById('dialogue').style.display='block';
+  typeof SFX!=='undefined' && SFX.dialogue();
+}
+function closeDialogue(){ document.getElementById('dialogue').style.display='none'; }
+</script>
+</body>
+</html>
